@@ -5,6 +5,7 @@ using Nito.AsyncEx;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Diagnostics;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -19,6 +20,7 @@ namespace FreeromsScraping
 
             foreach (var source in configuration.Sources.Cast<SourceElement>())
             {
+                Logger.Info($"Downloading catalog from source {source.Name}...");
                 await DownloadCatalogAsync(source.Name, source.Url);
             }
 
@@ -28,34 +30,54 @@ namespace FreeromsScraping
 
         private static async Task DownloadCatalogAsync(string name, string url)
         {
-            Logger.Info($"Fetching source {name}...");
-
-            using (var client = new HttpClient())
+            var menuPage = await GetContentAt(url);
+            if (String.IsNullOrWhiteSpace(menuPage))
             {
-                var response = await client.GetAsync(url);
+                return;
+            }
 
-                if (!response.IsSuccessStatusCode)
+            foreach (var catalogLink in ParseContentForMenuLink(menuPage))
+            {
+                var listPage = await GetContentAt(catalogLink);
+                if (String.IsNullOrWhiteSpace(listPage))
                 {
-                    Logger.Error($"Error while fetching source {name} !");
-                    return;
+                    continue;
                 }
 
-                Logger.Info("Content read, looking for menu links...");
-                var content = await response.Content.ReadAsStringAsync();
-                var menuLinks = ParseContentForMenuLink(content);
-
-                foreach (var link in menuLinks)
+                foreach (var romLink in ParseContentForRomLink(listPage))
                 {
-                    await DownloadPageCatalogAsync(link);
+                    Debugger.Break();
                 }
             }
         }
 
-        private static Task DownloadPageCatalogAsync(string link)
+        private static IEnumerable<string> ParseContentForRomLink(string html)
         {
-            Logger.Info($"Fetching {link}...");
+            var htmlDoc = new HtmlDocument();
+            htmlDoc.LoadHtml(html);
 
-            throw new NotImplementedException();
+            foreach (var node in htmlDoc.DocumentNode.QuerySelectorAll("a[href*='rom_download.php']"))
+            {
+                yield return node.Attributes["href"].Value;
+            }
+        }
+
+        private static async Task<string> GetContentAt(string url)
+        {
+            using (var client = new HttpClient())
+            {
+                Logger.Info($"Fetching {url}...");
+                var response = await client.GetAsync(url);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    Logger.Error($"Error while fetching {url} !");
+                    return null;
+                }
+
+                var content = await response.Content.ReadAsStringAsync();
+                return content;
+            }
         }
 
         private static IEnumerable<string> ParseContentForMenuLink(string html)
