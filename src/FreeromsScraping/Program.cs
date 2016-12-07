@@ -19,13 +19,13 @@ namespace FreeromsScraping
                 await DownloadCatalogAsync(source.Name, source.Url);
             }
 
-            Console.WriteLine("END");
+            Logger.Info("END");
             Console.Read();
         }
 
         private static async Task DownloadCatalogAsync(string name, string url)
         {
-            Console.WriteLine($"Fetching source {name}...");
+            Logger.Info($"Fetching source {name}...");
 
             using (var client = new HttpClient())
             {
@@ -33,11 +33,11 @@ namespace FreeromsScraping
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    Console.WriteLine($"Error while fetching source {name} !");
+                    Logger.Error($"Error while fetching source {name} !");
                     return;
                 }
 
-                Console.WriteLine("Content read, looking for links...");
+                Logger.Info("Content read, looking for links...");
                 var content = await response.Content.ReadAsStringAsync();
             }
         }

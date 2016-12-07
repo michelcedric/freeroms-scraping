@@ -68,6 +68,7 @@
     <Compile Include="Configuration\ScrapingSection.cs" />
     <Compile Include="Configuration\SourceElement.cs" />
     <Compile Include="Configuration\SourceElementCollection.cs" />
+    <Compile Include="Logger.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
