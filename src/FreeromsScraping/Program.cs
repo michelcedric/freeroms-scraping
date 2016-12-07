@@ -3,22 +3,43 @@ using Nito.AsyncEx;
 using System;
 using System.Configuration;
 using System.Linq;
+using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace FreeromsScraping
 {
     internal class Program
     {
-        private static Task MainAsync()
+        private static async Task MainAsync()
         {
             var configuration = (ScrapingSection)ConfigurationManager.GetSection("scraping");
 
             foreach (var source in configuration.Sources.Cast<SourceElement>())
             {
-                Console.WriteLine($"Fetching source {source.Name}");
+                await DownloadCatalogAsync(source.Name, source.Url);
             }
 
-            throw new NotImplementedException();
+            Console.WriteLine("END");
+            Console.Read();
+        }
+
+        private static async Task DownloadCatalogAsync(string name, string url)
+        {
+            Console.WriteLine($"Fetching source {name}...");
+
+            using (var client = new HttpClient())
+            {
+                var response = await client.GetAsync(url);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"Error while fetching source {name} !");
+                    return;
+                }
+
+                Console.WriteLine("Content read, looking for links...");
+                var content = await response.Content.ReadAsStringAsync();
+            }
         }
 
         private static void Main()
