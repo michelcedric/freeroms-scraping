@@ -5,6 +5,7 @@ using Nito.AsyncEx;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Text.RegularExpressions;
@@ -21,16 +22,16 @@ namespace FreeromsScraping
             foreach (var source in configuration.Sources.Cast<SourceElement>())
             {
                 Logger.Info($"Downloading catalog from source {source.Name}...");
-                await DownloadCatalogAsync(source.Name, source.Url);
+                await DownloadCatalogAsync(source.Name, source.Url, configuration.DestinationFolder);
             }
 
             Logger.Info("END");
             Console.Read();
         }
 
-        private static async Task DownloadCatalogAsync(string name, string url)
+        private static async Task DownloadCatalogAsync(string name, string url, string destinationFolder)
         {
-            var menuPage = await GetContentAt(url);
+            var menuPage = await GetContentAsStringAsync(url);
             if (String.IsNullOrWhiteSpace(menuPage))
             {
                 return;
@@ -38,7 +39,7 @@ namespace FreeromsScraping
 
             foreach (var catalogLink in ParseContentForMenuLink(menuPage))
             {
-                var listPage = await GetContentAt(catalogLink);
+                var listPage = await GetContentAsStringAsync(catalogLink);
                 if (String.IsNullOrWhiteSpace(listPage))
                 {
                     continue;
@@ -46,7 +47,7 @@ namespace FreeromsScraping
 
                 foreach (var romLink in ParseContentForRomLink(listPage))
                 {
-                    var romPage = await GetContentAt(romLink);
+                    var romPage = await GetContentAsStringAsync(romLink);
                     if (String.IsNullOrWhiteSpace(romPage))
                     {
                         continue;
@@ -58,7 +59,17 @@ namespace FreeromsScraping
                         continue;
                     }
 
-                    // TODO: download file
+                    var folder = Path.Combine(destinationFolder, name);
+                    if (!Directory.Exists(folder))
+                    {
+                        Directory.CreateDirectory(folder);
+                    }
+
+                    var fileName = Path.GetFileName(fileLink);
+                    Logger.Info($"Downloading game {fileName}...");
+                    var path = Path.Combine(folder, fileName);
+                    var bytes = await GetContentAsBytesAsync(fileLink);
+                    File.WriteAllBytes(path, bytes);
                 }
             }
         }
@@ -88,11 +99,27 @@ namespace FreeromsScraping
             }
         }
 
-        private static async Task<string> GetContentAt(string url)
+        private static async Task<byte[]> GetContentAsBytesAsync(string url)
         {
             using (var client = new HttpClient())
             {
-                Logger.Info($"Fetching {url}...");
+                var response = await client.GetAsync(url);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    Logger.Error($"Error while fetching {url} !");
+                    return null;
+                }
+
+                var content = await response.Content.ReadAsByteArrayAsync();
+                return content;
+            }
+        }
+
+        private static async Task<string> GetContentAsStringAsync(string url)
+        {
+            using (var client = new HttpClient())
+            {
                 var response = await client.GetAsync(url);
 
                 if (!response.IsSuccessStatusCode)
