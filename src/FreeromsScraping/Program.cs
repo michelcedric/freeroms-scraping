@@ -22,7 +22,7 @@ namespace FreeromsScraping
             foreach (var source in configuration.Sources.Cast<SourceElement>())
             {
                 Logger.Info($"Downloading catalog from source {source.Name}...");
-                await DownloadCatalogAsync(source.Name, source.Url, configuration.DestinationFolder);
+                await DownloadCatalogAsync(source.Name, source.Url, configuration.DestinationFolder).ConfigureAwait(false);
             }
 
             Logger.Info("END");
@@ -31,7 +31,7 @@ namespace FreeromsScraping
 
         private static async Task DownloadCatalogAsync(string name, string url, string destinationFolder)
         {
-            var menuPage = await GetContentAsStringAsync(url);
+            var menuPage = await GetContentAsStringAsync(url).ConfigureAwait(false);
             if (String.IsNullOrWhiteSpace(menuPage))
             {
                 return;
@@ -39,15 +39,15 @@ namespace FreeromsScraping
 
             foreach (var catalogLink in ParseContentForMenuLink(menuPage))
             {
-                var listPage = await GetContentAsStringAsync(catalogLink);
-                if (String.IsNullOrWhiteSpace(listPage))
+                var listPage = await GetContentAsStringAsync(catalogLink).ConfigureAwait(false);
+                if (String.IsNullOrWhiteSpace(listPage) || catalogLink != "http://www.freeroms.com/snes_roms_S.htm")
                 {
                     continue;
                 }
 
                 foreach (var romLink in ParseContentForRomLink(listPage))
                 {
-                    var romPage = await GetContentAsStringAsync(romLink);
+                    var romPage = await GetContentAsStringAsync(romLink).ConfigureAwait(false);
                     if (String.IsNullOrWhiteSpace(romPage))
                     {
                         continue;
@@ -68,7 +68,7 @@ namespace FreeromsScraping
                     var fileName = Path.GetFileName(fileLink);
                     Logger.Info($"Downloading game {fileName}...");
                     var path = Path.Combine(folder, fileName);
-                    var bytes = await GetContentAsBytesAsync(fileLink);
+                    var bytes = await GetContentAsBytesAsync(fileLink).ConfigureAwait(false);
                     File.WriteAllBytes(path, bytes);
                 }
             }
@@ -76,7 +76,7 @@ namespace FreeromsScraping
 
         private static string ParseContentForFileLink(string html)
         {
-            var regex = new Regex(@"document.getElementById\(""romss""\)\.innerHTML='&nbsp;<a href=""(?<link>http:\/\/download\.freeroms\.com\/\w+\/(?:\w|\.)+)"">Direct&nbsp;Download<\/a>&nbsp;';", RegexOptions.Compiled);
+            var regex = new Regex(@"document.getElementById\(""romss""\)\.innerHTML='&nbsp;<a href=""(?<link>http:\/\/download\.freeroms\.com\/\w+\/(?:\w|\.|-|,|!|\(|\)|\+)+)"">Direct&nbsp;Download<\/a>&nbsp;';", RegexOptions.Compiled);
             var match = regex.Match(html);
 
             if (!match.Success)
@@ -103,7 +103,7 @@ namespace FreeromsScraping
         {
             using (var client = new HttpClient())
             {
-                var response = await client.GetAsync(url);
+                var response = await client.GetAsync(url).ConfigureAwait(false);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -111,7 +111,7 @@ namespace FreeromsScraping
                     return null;
                 }
 
-                var content = await response.Content.ReadAsByteArrayAsync();
+                var content = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
                 return content;
             }
         }
@@ -120,7 +120,7 @@ namespace FreeromsScraping
         {
             using (var client = new HttpClient())
             {
-                var response = await client.GetAsync(url);
+                var response = await client.GetAsync(url).ConfigureAwait(false);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -128,7 +128,7 @@ namespace FreeromsScraping
                     return null;
                 }
 
-                var content = await response.Content.ReadAsStringAsync();
+                var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
                 return content;
             }
         }
