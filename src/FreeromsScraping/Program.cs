@@ -40,7 +40,7 @@ namespace FreeromsScraping
             foreach (var catalogLink in ParseContentForMenuLink(menuPage))
             {
                 var listPage = await GetContentAsStringAsync(catalogLink).ConfigureAwait(false);
-                if (String.IsNullOrWhiteSpace(listPage) || catalogLink != "http://www.freeroms.com/snes_roms_S.htm")
+                if (String.IsNullOrWhiteSpace(listPage))
                 {
                     continue;
                 }
