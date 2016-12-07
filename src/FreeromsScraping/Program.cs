@@ -39,6 +39,7 @@ namespace FreeromsScraping
 
             foreach (var catalogLink in ParseContentForMenuLink(menuPage))
             {
+                //if (catalogLink != "http://www.freeroms.com/nes_roms_Z.htm") continue;
                 var listPage = await GetContentAsStringAsync(catalogLink).ConfigureAwait(false);
                 if (String.IsNullOrWhiteSpace(listPage))
                 {
@@ -76,7 +77,7 @@ namespace FreeromsScraping
 
         private static string ParseContentForFileLink(string html)
         {
-            var regex = new Regex(@"document.getElementById\(""romss""\)\.innerHTML='&nbsp;<a href=""(?<link>http:\/\/download\.freeroms\.com\/\w+\/(?:\w|\.|-|,|!|\(|\)|\+)+)"">Direct&nbsp;Download<\/a>&nbsp;';", RegexOptions.Compiled);
+            var regex = new Regex(@"document.getElementById\(""romss""\)\.innerHTML='&nbsp;<a href=""(?<link>http:\/\/download\.freeroms\.com\/(?:\/|\w|\.|-|,|!|\(|\)|\+|\[|\])+)"">Direct&nbsp;Download<\/a>&nbsp;';", RegexOptions.Compiled);
             var match = regex.Match(html);
 
             if (!match.Success)
