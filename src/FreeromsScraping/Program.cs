@@ -5,9 +5,9 @@ using Nito.AsyncEx;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
-using System.Diagnostics;
 using System.Linq;
 using System.Net.Http;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace FreeromsScraping
@@ -46,9 +46,35 @@ namespace FreeromsScraping
 
                 foreach (var romLink in ParseContentForRomLink(listPage))
                 {
-                    Debugger.Break();
+                    var romPage = await GetContentAt(romLink);
+                    if (String.IsNullOrWhiteSpace(romPage))
+                    {
+                        continue;
+                    }
+
+                    var fileLink = ParseContentForFileLink(romPage);
+                    if (String.IsNullOrWhiteSpace(fileLink))
+                    {
+                        continue;
+                    }
+
+                    // TODO: download file
                 }
             }
+        }
+
+        private static string ParseContentForFileLink(string html)
+        {
+            var regex = new Regex(@"document.getElementById\(""romss""\)\.innerHTML='&nbsp;<a href=""(?<link>http:\/\/download\.freeroms\.com\/\w+\/(?:\w|\.)+)"">Direct&nbsp;Download<\/a>&nbsp;';", RegexOptions.Compiled);
+            var match = regex.Match(html);
+
+            if (!match.Success)
+            {
+                Logger.Error("No link to rom found in html !");
+                return null;
+            }
+
+            return match.Groups["link"].Value;
         }
 
         private static IEnumerable<string> ParseContentForRomLink(string html)
