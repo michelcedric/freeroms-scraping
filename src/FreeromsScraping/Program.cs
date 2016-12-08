@@ -31,7 +31,7 @@ namespace FreeromsScraping
 
         private static async Task DownloadCatalogAsync(string name, string url, string destinationFolder)
         {
-            var menuPage = await GetContentAsStringAsync(url).ConfigureAwait(false);
+            var menuPage = await RetryHelper.ExecuteAndThrowAsync(async () => await GetContentAsStringAsync(url).ConfigureAwait(false), e => true).ConfigureAwait(false);
             if (String.IsNullOrWhiteSpace(menuPage))
             {
                 return;
@@ -39,8 +39,8 @@ namespace FreeromsScraping
 
             foreach (var catalogLink in ParseContentForMenuLink(menuPage))
             {
-                //if (catalogLink != "http://www.freeroms.com/nes_roms_Z.htm") continue;
-                var listPage = await GetContentAsStringAsync(catalogLink).ConfigureAwait(false);
+                //if (catalogLink != "http://www.freeroms.com/mame_roms_Z.htm") continue;
+                var listPage = await RetryHelper.ExecuteAndThrowAsync(async () => await GetContentAsStringAsync(catalogLink).ConfigureAwait(false), e => true).ConfigureAwait(false);
                 if (String.IsNullOrWhiteSpace(listPage))
                 {
                     continue;
@@ -48,7 +48,7 @@ namespace FreeromsScraping
 
                 foreach (var romLink in ParseContentForRomLink(listPage))
                 {
-                    var romPage = await GetContentAsStringAsync(romLink).ConfigureAwait(false);
+                    var romPage = await RetryHelper.ExecuteAndThrowAsync(async () => await GetContentAsStringAsync(romLink).ConfigureAwait(false), e => true).ConfigureAwait(false);
                     if (String.IsNullOrWhiteSpace(romPage))
                     {
                         continue;
@@ -69,7 +69,7 @@ namespace FreeromsScraping
                     var fileName = Path.GetFileName(fileLink);
                     Logger.Info($"Downloading game {fileName}...");
                     var path = Path.Combine(folder, fileName);
-                    var bytes = await GetContentAsBytesAsync(fileLink).ConfigureAwait(false);
+                    var bytes = await RetryHelper.ExecuteAndThrowAsync(async () => await GetContentAsBytesAsync(fileLink).ConfigureAwait(false), e => true).ConfigureAwait(false);
                     File.WriteAllBytes(path, bytes);
                 }
             }
@@ -77,7 +77,7 @@ namespace FreeromsScraping
 
         private static string ParseContentForFileLink(string html)
         {
-            var regex = new Regex(@"document.getElementById\(""romss""\)\.innerHTML='&nbsp;<a href=""(?<link>http:\/\/download\.freeroms\.com\/(?:\/|\w|\.|-|,|!|\(|\)|\+|\[|\])+)"">Direct&nbsp;Download<\/a>&nbsp;';", RegexOptions.Compiled);
+            var regex = new Regex(@"document.getElementById\(""romss""\)\.innerHTML='&nbsp;<a href=""(?<link>http:\/\/download\.freeroms\.com\/(?:\/|\w|\.|-|,|!|\(|\)|\+|\[|\]|%)+)"">Direct&nbsp;Download<\/a>&nbsp;';", RegexOptions.Compiled);
             var match = regex.Match(html);
 
             if (!match.Success)
