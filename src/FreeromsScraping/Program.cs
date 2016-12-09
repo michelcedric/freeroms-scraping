@@ -39,7 +39,6 @@ namespace FreeromsScraping
 
             foreach (var catalogLink in ParseContentForMenuLink(menuPage))
             {
-                //if (catalogLink != "http://www.freeroms.com/mame_roms_Z.htm") continue;
                 var listPage = await RetryHelper.ExecuteAndThrowAsync(() => GetContentAsStringAsync(catalogLink), e => true).ConfigureAwait(false);
                 if (String.IsNullOrWhiteSpace(listPage))
                 {
@@ -71,7 +70,7 @@ namespace FreeromsScraping
                     var path = Path.Combine(folder, fileName);
                     if (File.Exists(path))
                     {
-                        Logger.Info("File already exists, skipping...");
+                        Logger.Info("--> File already exists, skipping.");
                         continue;
                     }
 
