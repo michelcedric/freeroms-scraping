@@ -16,6 +16,8 @@ namespace FreeromsScraping
 {
     internal class Program
     {
+        private static readonly HttpClient Client = new HttpClient();
+
         private static async Task MainAsync()
         {
             var configuration = (ScrapingSection)ConfigurationManager.GetSection("scraping");
@@ -25,6 +27,8 @@ namespace FreeromsScraping
                 Logger.Info($"Downloading catalog from source {source.Name}...");
                 await DownloadCatalogAsync(source.Name, source.Url, configuration.DestinationFolder).ConfigureAwait(false);
             }
+
+            Client?.Dispose();
 
             Logger.Info("END");
             Console.Read();
@@ -106,45 +110,42 @@ namespace FreeromsScraping
 
         private static async Task SaveContentAsync(string url, string path)
         {
-            using (var client = new HttpClient())
+            using (var response = await Client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false))
             {
-                using (var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false))
+                if (!response.IsSuccessStatusCode)
                 {
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        Logger.Error($"Error while fetching {url} !");
-                        return;
-                    }
+                    Logger.Error($"Error while fetching {url} !");
+                    return;
+                }
 
-                    Console.Write($"Downloading file {url}... ");
-                    var left = Console.CursorLeft;
-                    var top = Console.CursorTop;
-                    var fileSize = response.Content.Headers.ContentLength;
+                Console.Write($"Downloading file {url}... ");
+                var left = Console.CursorLeft;
+                var top = Console.CursorTop;
+                var fileSize = response.Content.Headers.ContentLength;
 
-                    using (var stream = await RetryHelper.ExecuteAndThrowAsync(() => response.Content.ReadAsStreamAsync(), e => true).ConfigureAwait(false))
+                using (var stream = await RetryHelper.ExecuteAndThrowAsync(() => response.Content.ReadAsStreamAsync(), e => true).ConfigureAwait(false))
+                {
+                    using (var destination = new FileStream(path, FileMode.Create))
                     {
-                        using (var destination = new FileStream(path, FileMode.Create))
+                        var progress = new SynchronousProgress<long>(value =>
                         {
-                            var progress = new SynchronousProgress<long>(value =>
+                            Console.CursorLeft = left;
+                            Console.CursorTop = top;
+
+                            if (fileSize.HasValue)
                             {
-                                Console.CursorLeft = left;
-                                Console.CursorTop = top;
+                                var current = (decimal)(value * 100) / fileSize;
+                                Console.Write($"{current:0.00} %");
+                            }
+                            else
+                            {
+                                Console.Write($"{value} bytes");
+                            }
+                        });
 
-                                if (fileSize.HasValue)
-                                {
-                                    var current = (decimal)(value * 100) / fileSize;
-                                    Console.Write($"{current:0.00} %");
-                                }
-                                else
-                                {
-                                    Console.Write($"{value} bytes");
-                                }
-                            });
-
-                            Console.CursorVisible = false;
-                            await stream.CopyToAsync(destination, progress);
-                            Console.CursorVisible = true;
-                        }
+                        Console.CursorVisible = false;
+                        await stream.CopyToAsync(destination, progress);
+                        Console.CursorVisible = true;
                     }
                 }
             }
@@ -152,19 +153,16 @@ namespace FreeromsScraping
 
         private static async Task<string> GetContentAsStringAsync(string url)
         {
-            using (var client = new HttpClient())
+            using (var response = await Client.GetAsync(url).ConfigureAwait(false))
             {
-                using (var response = await client.GetAsync(url).ConfigureAwait(false))
+                if (!response.IsSuccessStatusCode)
                 {
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        Logger.Error($"Error while fetching {url} !");
-                        return null;
-                    }
-
-                    var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                    return content;
+                    Logger.Error($"Error while fetching {url} !");
+                    return null;
                 }
+
+                var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                return content;
             }
         }
 
