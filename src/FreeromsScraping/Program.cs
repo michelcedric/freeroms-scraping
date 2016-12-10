@@ -1,5 +1,6 @@
 ﻿using Fizzler.Systems.HtmlAgilityPack;
 using FreeromsScraping.Configuration;
+using FreeromsScraping.IO;
 using HtmlAgilityPack;
 using Nito.AsyncEx;
 using System;
@@ -66,7 +67,6 @@ namespace FreeromsScraping
                     }
 
                     var fileName = Path.GetFileName(fileLink);
-                    Logger.Info($"Downloading game {fileName}...");
                     var path = Path.Combine(folder, fileName);
                     if (File.Exists(path))
                     {
@@ -116,11 +116,34 @@ namespace FreeromsScraping
                         return;
                     }
 
+                    Console.Write($"Downloading file {url}... ");
+                    var left = Console.CursorLeft;
+                    var top = Console.CursorTop;
+                    var fileSize = response.Content.Headers.ContentLength;
+
                     using (var stream = await RetryHelper.ExecuteAndThrowAsync(() => response.Content.ReadAsStreamAsync(), e => true).ConfigureAwait(false))
                     {
                         using (var destination = new FileStream(path, FileMode.Create))
                         {
-                            await stream.CopyToAsync(destination).ConfigureAwait(false);
+                            var progress = new SynchronousProgress<long>(value =>
+                            {
+                                Console.CursorLeft = left;
+                                Console.CursorTop = top;
+
+                                if (fileSize.HasValue)
+                                {
+                                    var current = (decimal)(value * 100) / fileSize;
+                                    Console.Write($"{current:0.00} %");
+                                }
+                                else
+                                {
+                                    Console.Write($"{value} bytes");
+                                }
+                            });
+
+                            Console.CursorVisible = false;
+                            await stream.CopyToAsync(destination, progress);
+                            Console.CursorVisible = true;
                         }
                     }
                 }
