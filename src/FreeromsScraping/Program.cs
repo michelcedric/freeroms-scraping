@@ -6,6 +6,7 @@ using Nito.AsyncEx;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -127,25 +128,29 @@ namespace FreeromsScraping
                 {
                     using (var destination = new FileStream(path, FileMode.Create))
                     {
+                        var sw = new Stopwatch();
                         var progress = new SynchronousProgress<long>(value =>
                         {
                             Console.CursorLeft = left;
                             Console.CursorTop = top;
+                            var speed = value / sw.Elapsed.TotalSeconds / 1024;
 
                             if (fileSize.HasValue)
                             {
-                                var current = (decimal)(value * 100) / fileSize;
-                                Console.Write($"{current:0.00} %");
+                                var pct = (decimal)(value * 100) / fileSize;
+                                Console.Write($"{pct:0.00} % @ {speed:0.00} kb/s");
                             }
                             else
                             {
-                                Console.Write($"{value} bytes");
+                                Console.Write($"{value} bytes @ {speed:0.00} kb/s");
                             }
                         });
 
+                        sw.Start();
                         Console.CursorVisible = false;
                         await stream.CopyToAsync(destination, progress);
                         Console.CursorVisible = true;
+                        sw.Stop();
                     }
                 }
             }
