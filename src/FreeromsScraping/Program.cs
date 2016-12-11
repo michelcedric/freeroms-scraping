@@ -4,6 +4,7 @@ using FreeromsScraping.IO;
 using HtmlAgilityPack;
 using Nito.AsyncEx;
 using System;
+using System.Collections.Async;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Diagnostics;
@@ -17,27 +18,35 @@ namespace FreeromsScraping
 {
     internal class Program
     {
-        private static readonly HttpClient Client = new HttpClient();
+        private static ScrapingSection _configuration;
+
+        private static ScrapingSection Configuration
+        {
+            get
+            {
+                if (_configuration == null)
+                {
+                    _configuration = (ScrapingSection)ConfigurationManager.GetSection("scraping");
+                }
+                return _configuration;
+            }
+        }
 
         private static async Task MainAsync()
         {
-            var configuration = (ScrapingSection)ConfigurationManager.GetSection("scraping");
-
-            foreach (var source in configuration.Sources.Cast<SourceElement>())
+            foreach (var source in Configuration.Sources.Cast<SourceElement>())
             {
                 Logger.Info($"Downloading catalog from source {source.Name}...");
-                await DownloadCatalogAsync(source.Name, source.Url, configuration.DestinationFolder).ConfigureAwait(false);
+                await DownloadCatalogAsync(source.Name, source.Url, Configuration.DestinationFolder);
             }
 
-            Client?.Dispose();
-
-            Logger.Info("END");
-            Console.Read();
+            Logger.Info("End");
+            Console.ReadKey();
         }
 
         private static async Task DownloadCatalogAsync(string name, string url, string destinationFolder)
         {
-            var menuPage = await RetryHelper.ExecuteAndThrowAsync(() => GetContentAsStringAsync(url), e => true).ConfigureAwait(false);
+            var menuPage = await RetryHelper.ExecuteAndThrowAsync(() => GetContentAsStringAsync(url), e => true);
             if (String.IsNullOrWhiteSpace(menuPage))
             {
                 return;
@@ -45,42 +54,42 @@ namespace FreeromsScraping
 
             foreach (var catalogLink in ParseContentForMenuLink(menuPage))
             {
-                var listPage = await RetryHelper.ExecuteAndThrowAsync(() => GetContentAsStringAsync(catalogLink), e => true).ConfigureAwait(false);
+                var listPage = await RetryHelper.ExecuteAndThrowAsync(() => GetContentAsStringAsync(catalogLink), e => true);
                 if (String.IsNullOrWhiteSpace(listPage))
                 {
                     continue;
                 }
 
-                foreach (var romLink in ParseContentForRomLink(listPage))
+                var links = ParseContentForRomLink(listPage);
+                await links.ParallelForEachAsync(async romLink =>
                 {
-                    var romPage = await RetryHelper.ExecuteAndThrowAsync(() => GetContentAsStringAsync(romLink), e => true).ConfigureAwait(false);
-                    if (String.IsNullOrWhiteSpace(romPage))
+                    var romPage = await RetryHelper.ExecuteAndThrowAsync(() => GetContentAsStringAsync(romLink), e => true);
+                    if (!String.IsNullOrWhiteSpace(romPage))
                     {
-                        continue;
-                    }
+                        var fileLink = ParseContentForFileLink(romPage);
+                        if (!String.IsNullOrWhiteSpace(fileLink))
+                        {
+                            var folder = Path.Combine(destinationFolder, name);
+                            if (!Directory.Exists(folder))
+                            {
+                                Directory.CreateDirectory(folder);
+                            }
 
-                    var fileLink = ParseContentForFileLink(romPage);
-                    if (String.IsNullOrWhiteSpace(fileLink))
-                    {
-                        continue;
-                    }
+                            var fileName = Path.GetFileName(fileLink);
+                            var path = Path.Combine(folder, fileName);
+                            if (!File.Exists(path))
+                            {
 
-                    var folder = Path.Combine(destinationFolder, name);
-                    if (!Directory.Exists(folder))
-                    {
-                        Directory.CreateDirectory(folder);
+                                await RetryHelper.ExecuteAndThrowAsync(() => SaveContentAsync(fileLink, path), e => true);
+                            }
+                            else
+                            {
+                                Logger.Info("--> File already exists, skipping.");
+                            }
+                        }
                     }
+                }, maxDegreeOfParalellism: Configuration.ClientNumber);
 
-                    var fileName = Path.GetFileName(fileLink);
-                    var path = Path.Combine(folder, fileName);
-                    if (File.Exists(path))
-                    {
-                        Logger.Info("--> File already exists, skipping.");
-                        continue;
-                    }
-
-                    await RetryHelper.ExecuteAndThrowAsync(() => SaveContentAsync(fileLink, path), e => true).ConfigureAwait(false);
-                }
             }
         }
 
@@ -111,47 +120,50 @@ namespace FreeromsScraping
 
         private static async Task SaveContentAsync(string url, string path)
         {
-            using (var response = await Client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false))
+            using (var client = new HttpClient())
             {
-                if (!response.IsSuccessStatusCode)
+                using (var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead))
                 {
-                    Logger.Error($"Error while fetching {url} !");
-                    return;
-                }
-
-                Console.Write($"Downloading file {url}... ");
-                var left = Console.CursorLeft;
-                var top = Console.CursorTop;
-                var fileSize = response.Content.Headers.ContentLength;
-
-                using (var stream = await RetryHelper.ExecuteAndThrowAsync(() => response.Content.ReadAsStreamAsync(), e => true).ConfigureAwait(false))
-                {
-                    using (var destination = new FileStream(path, FileMode.Create))
+                    if (!response.IsSuccessStatusCode)
                     {
-                        var sw = new Stopwatch();
-                        var progress = new SynchronousProgress<long>(value =>
+                        Logger.Error($"Error while fetching {url} !");
+                        return;
+                    }
+
+                    var fileSize = response.Content.Headers.ContentLength;
+                    var left = Console.CursorLeft;
+                    var top = Console.CursorTop;
+                    Console.Write($"Downloading file {url}... ");
+
+                    using (var stream = await RetryHelper.ExecuteAndThrowAsync(() => response.Content.ReadAsStreamAsync(), e => true))
+                    {
+                        using (var destination = new FileStream(path, FileMode.Create))
                         {
-                            Console.CursorLeft = left;
-                            Console.CursorTop = top;
-                            var speed = value / sw.Elapsed.TotalSeconds / 1024;
-
-                            if (fileSize.HasValue)
+                            var sw = new Stopwatch();
+                            var progress = new SynchronousProgress<long>(value =>
                             {
-                                var pct = (decimal)(value * 100) / fileSize;
-                                Console.Write($"{pct:0.00} % @ {speed:0.00} kb/s");
-                            }
-                            else
-                            {
-                                Console.Write($"{value} bytes @ {speed:0.00} kb/s");
-                            }
-                        });
+                                Console.CursorLeft = left;
+                                Console.CursorTop = top;
+                                var speed = value / sw.Elapsed.TotalSeconds / 1024;
 
-                        sw.Start();
-                        Console.CursorVisible = false;
-                        await stream.CopyToAsync(destination, progress);
-                        Console.CursorVisible = true;
-                        Console.WriteLine();
-                        sw.Stop();
+                                if (fileSize.HasValue)
+                                {
+                                    var pct = (decimal)(value * 100) / fileSize;
+                                    Console.WriteLine($"{pct:0.00} % @ {speed:0.00} kb/s ");
+                                }
+                                else
+                                {
+                                    Console.Write($"{value} bytes @ {speed:0.00} kb/s ");
+                                }
+                            });
+
+                            sw.Start();
+                            Console.CursorVisible = false;
+                            await stream.CopyToAsync(destination, progress);
+                            Console.CursorVisible = true;
+                            Console.WriteLine();
+                            sw.Stop();
+                        }
                     }
                 }
             }
@@ -159,16 +171,19 @@ namespace FreeromsScraping
 
         private static async Task<string> GetContentAsStringAsync(string url)
         {
-            using (var response = await Client.GetAsync(url).ConfigureAwait(false))
+            using (var client = new HttpClient())
             {
-                if (!response.IsSuccessStatusCode)
+                using (var response = await client.GetAsync(url))
                 {
-                    Logger.Error($"Error while fetching {url} !");
-                    return null;
-                }
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        Logger.Error($"Error while fetching {url} !");
+                        return null;
+                    }
 
-                var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                return content;
+                    var content = await response.Content.ReadAsStringAsync();
+                    return content;
+                }
             }
         }
 
@@ -185,7 +200,7 @@ namespace FreeromsScraping
 
         private static void Main()
         {
-            AsyncContext.Run(async () => await MainAsync().ConfigureAwait(false));
+            AsyncContext.Run(async () => await MainAsync());
         }
     }
 }

@@ -11,6 +11,13 @@ namespace FreeromsScraping.Configuration
             set { this["destinationFolder"] = value; }
         }
 
+        [ConfigurationProperty("clientNumber", IsRequired = true)]
+        public int ClientNumber
+        {
+            get { return (int)this["clientNumber"]; }
+            set { this["clientNumber"] = value; }
+        }
+
         [ConfigurationProperty("sources", IsDefaultCollection = true)]
         [ConfigurationCollection(typeof(SourceElementCollection), AddItemName = "add", ClearItemsName = "clear", RemoveItemName = "remove")]
         public SourceElementCollection Sources => (SourceElementCollection)base["sources"];

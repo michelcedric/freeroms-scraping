@@ -15,7 +15,7 @@ namespace FreeromsScraping
             {
                 try
                 {
-                    await funcAsync().ConfigureAwait(false);
+                    await funcAsync();
                     return;
                 }
                 catch (Exception e)
@@ -25,7 +25,7 @@ namespace FreeromsScraping
                     if (shouldRetry(e))
                     {
                         Logger.Warning($"An exception has occured, retrying in {delay} ms.");
-                        await Task.Delay(delay).ConfigureAwait(false);
+                        await Task.Delay(delay);
                         delay *= 2;
                     }
                     else
@@ -48,7 +48,7 @@ namespace FreeromsScraping
             {
                 try
                 {
-                    var result = await funcAsync().ConfigureAwait(false);
+                    var result = await funcAsync();
 
                     return result;
                 }
@@ -59,7 +59,7 @@ namespace FreeromsScraping
                     if (shouldRetry(e))
                     {
                         Logger.Warning($"An exception has occured, retrying in {delay} ms.");
-                        await Task.Delay(delay).ConfigureAwait(false);
+                        await Task.Delay(delay);
                         delay *= 2;
                     }
                     else
