@@ -150,6 +150,7 @@ namespace FreeromsScraping
                         Console.CursorVisible = false;
                         await stream.CopyToAsync(destination, progress);
                         Console.CursorVisible = true;
+                        Console.WriteLine();
                         sw.Stop();
                     }
                 }
