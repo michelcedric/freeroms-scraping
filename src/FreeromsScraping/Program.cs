@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Configuration;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Text.RegularExpressions;
@@ -118,7 +119,7 @@ namespace FreeromsScraping
             }
         }
 
-        private static async Task SaveContentAsync(string url, string path)
+        private static async Task SaveContentAsync(string url, string path, bool extracFile = false)
         {
             using (var client = new HttpClient())
             {
@@ -160,12 +161,30 @@ namespace FreeromsScraping
                             sw.Start();
                             Console.CursorVisible = false;
                             await stream.CopyToAsync(destination, progress);
+
+                            if (extracFile)
+                            {
+                                ZipArchive zipFile = new ZipArchive(destination);
+                                foreach (ZipArchiveEntry file in zipFile.Entries)
+                                {
+                                    file.ExtractToFile(Path.Combine(Path.GetDirectoryName(path), file.FullName), true);
+                                }
+                            }
+
+
                             Console.CursorVisible = true;
                             Console.WriteLine();
                             sw.Stop();
                         }
                     }
+
+                    if (extracFile)
+                    {
+                        File.Delete(path);
+                    }
+
                 }
+
             }
         }
 
