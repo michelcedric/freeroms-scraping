@@ -81,7 +81,7 @@ namespace FreeromsScraping
                             if (!File.Exists(path))
                             {
 
-                                await RetryHelper.ExecuteAndThrowAsync(() => SaveContentAsync(fileLink, path), e => true);
+                                await RetryHelper.ExecuteAndThrowAsync(() => SaveContentAsync(fileLink, path, true), e => true);
                             }
                             else
                             {
@@ -138,7 +138,7 @@ namespace FreeromsScraping
 
                     using (var stream = await RetryHelper.ExecuteAndThrowAsync(() => response.Content.ReadAsStreamAsync(), e => true))
                     {
-                        using (var destination = new FileStream(path, FileMode.Create))
+                        using (var destination = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite, 8192, true))
                         {
                             var sw = new Stopwatch();
                             var progress = new SynchronousProgress<long>(value =>
@@ -164,11 +164,13 @@ namespace FreeromsScraping
 
                             if (extracFile)
                             {
+
                                 ZipArchive zipFile = new ZipArchive(destination);
                                 foreach (ZipArchiveEntry file in zipFile.Entries)
                                 {
                                     file.ExtractToFile(Path.Combine(Path.GetDirectoryName(path), file.FullName), true);
                                 }
+
                             }
 
 
